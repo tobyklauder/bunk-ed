@@ -48,29 +48,35 @@ def assign_cabins(sorted_campers_df, age_range=2, output_file='cabin_pairings.cs
     # Group campers by gender
     grouped_campers = sorted_campers_df.groupby(['Gender'])
 
+    # Iterate through each gender group
     for group, group_df in grouped_campers:
         gender = group
         group_df.reset_index(drop=True, inplace=True)
 
+        # Iterate through the campers in the current gender group
         for index, camper in group_df.iterrows():
             if camper['Name'] in processed_campers:
                 continue
 
+            # Initialize the current cabin with the current camper
             current_cabin = [camper]
             processed_campers.add(camper['Name'])
 
+            # Check if the camper has a buddy request and process it
             if camper['Buddy']:
                 buddy = group_df.loc[(group_df['Name'] == camper['Buddy'])]
                 if not buddy.empty and len(current_cabin) < 11:
                     current_cabin.append(buddy.iloc[0])
                     processed_campers.add(buddy.iloc[0]['Name'])
 
+            # Fill the cabin with campers within the specified age range
             while len(current_cabin) < 12:
                 remaining_campers = group_df.loc[~group_df['Name'].isin(processed_campers)]
                 if not remaining_campers.empty:
                     next_camper = remaining_campers.iloc[0]
                     age_diff = abs(camper['Age'] - next_camper['Age'])
 
+                    # Add campers within the age range to the cabin
                     if age_diff <= age_range:
                         current_cabin.append(next_camper)
                         processed_campers.add(next_camper['Name'])
@@ -79,6 +85,7 @@ def assign_cabins(sorted_campers_df, age_range=2, output_file='cabin_pairings.cs
                 else:
                     break
 
+            # Add the cabin to the cabins dictionary
             cabins[cabin_counter] = current_cabin
             cabin_counter += 1
 
@@ -160,7 +167,7 @@ def assign_cabins_aggressive(sorted_campers_df, age_range=2, output_file='cabin_
     return cabins
 
 
-
+#allows the user to open a .csv file for processing 
 def open_file_dialog():
     file_path = filedialog.askopenfilename(
         filetypes=[("CSV files", "*.csv"), ("All files", "*.*")])
@@ -173,9 +180,11 @@ def open_file_dialog():
             cabins = assign_cabins(sorted_campers_df)
 
 
-
+# gets the current status of the aggressive pairing toggle 
 def tight_coupling():
-    return tight_coupling_var.get()
+    toggle_value = tight_coupling_var.get()
+    return toggle_value 
+
 
 #create the primary window 
 root = tk.Tk()
