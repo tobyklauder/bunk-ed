@@ -40,99 +40,125 @@ class CustomToggle(tk.Canvas):
 
 
 # normal matching algorithm 
-def assign_cabins(sorted_campers_df):
+def assign_cabins(sorted_campers_df, age_range=2, output_file='cabin_pairings.csv'):
     cabins = {}
     cabin_counter = 1
-    current_cabin = []
-    current_gender = None
-    processed_buddies = set()
+    processed_campers = set()
 
-    for index, camper in sorted_campers_df.iterrows():
-        if camper['Name'] in processed_buddies:
-            continue
+    # Group campers by gender
+    grouped_campers = sorted_campers_df.groupby(['Gender'])
 
-        if current_gender is None:
-            current_gender = camper['Gender']
+    for group, group_df in grouped_campers:
+        gender = group
+        group_df.reset_index(drop=True, inplace=True)
 
-        if camper['Gender'] != current_gender:
+        for index, camper in group_df.iterrows():
+            if camper['Name'] in processed_campers:
+                continue
+
+            current_cabin = [camper]
+            processed_campers.add(camper['Name'])
+
+            if camper['Buddy']:
+                buddy = group_df.loc[(group_df['Name'] == camper['Buddy'])]
+                if not buddy.empty and len(current_cabin) < 11:
+                    current_cabin.append(buddy.iloc[0])
+                    processed_campers.add(buddy.iloc[0]['Name'])
+
+            while len(current_cabin) < 12:
+                remaining_campers = group_df.loc[~group_df['Name'].isin(processed_campers)]
+                if not remaining_campers.empty:
+                    next_camper = remaining_campers.iloc[0]
+                    age_diff = abs(camper['Age'] - next_camper['Age'])
+
+                    if age_diff <= age_range:
+                        current_cabin.append(next_camper)
+                        processed_campers.add(next_camper['Name'])
+                    else:
+                        break
+                else:
+                    break
+
             cabins[cabin_counter] = current_cabin
             cabin_counter += 1
-            current_cabin = []
-            current_gender = camper['Gender']
 
-        if camper['Buddy']:
-            buddy = sorted_campers_df.loc[(sorted_campers_df['Name'] == camper['Buddy']) & (sorted_campers_df['Gender'] == camper['Gender'])]
-            if not buddy.empty and len(current_cabin) < 11:
-                current_cabin.extend([camper, buddy.iloc[0]])
-                processed_buddies.add(camper['Name'])
-                processed_buddies.add(buddy.iloc[0]['Name'])
-            elif len(current_cabin) < 12:
-                current_cabin.append(camper)
-                processed_buddies.add(camper['Name'])
-        else:
-            if len(current_cabin) < 12:
-                current_cabin.append(camper)
-                processed_buddies.add(camper['Name'])
-            else:
-                cabins[cabin_counter] = current_cabin
-                cabin_counter += 1
-                current_cabin = [camper]
-                processed_buddies.add(camper['Name'])
-
-    if current_cabin:
-        cabins[cabin_counter] = current_cabin
+    # Write cabin pairings to a file
+    with open(output_file, 'w') as f:
+        for cabin_number, cabin in cabins.items():
+            f.write(f"Cabin {cabin_number}:\n")
+            for camper in cabin:
+                f.write(f"{camper['Name']}\n")
+            f.write("\n\n")
 
     return cabins
+
+
+
 
 #aggressive matching algorithm (pairs based on school within normal constraints)
-def assign_cabins_aggressive(sorted_campers_df):
+def assign_cabins_aggressive(sorted_campers_df, age_range=2, output_file='cabin_pairings.csv'):
     cabins = {}
     cabin_counter = 1
-    current_cabin = []
-    current_gender = None
-    processed_buddies = set()
+    processed_campers = set()
 
-    for index, camper in sorted_campers_df.iterrows():
-        if camper['Name'] in processed_buddies:
-            continue
+    # Group campers by gender
+    grouped_campers = sorted_campers_df.groupby(['Gender'])
 
-        if current_gender is None:
-            current_gender = camper['Gender']
+    for group, group_df in grouped_campers:
+        gender = group
+        group_df.reset_index(drop=True, inplace=True)
 
-        if camper['Gender'] != current_gender:
-            cabins[cabin_counter] = current_cabin
-            cabin_counter += 1
-            current_cabin = []
-            current_gender = camper['Gender']
+        for index, camper in group_df.iterrows():
+            if camper['Name'] in processed_campers:
+                continue
 
-        if camper['Buddy']:
-            buddy = sorted_campers_df.loc[(sorted_campers_df['Name'] == camper['Buddy']) & (sorted_campers_df['Gender'] == camper['Gender'])]
-            if not buddy.empty and len(current_cabin) < 11:
-                current_cabin.extend([camper, buddy.iloc[0]])
-                processed_buddies.add(camper['Name'])
-                processed_buddies.add(buddy.iloc[0]['Name'])
-            elif len(current_cabin) < 12:
-                current_cabin.append(camper)
-                processed_buddies.add(camper['Name'])
-        else:
-            schoolmates = sorted_campers_df.loc[(sorted_campers_df['School'] == camper['School']) & (sorted_campers_df['Gender'] == camper['Gender']) & (~sorted_campers_df['Name'].isin(processed_buddies))]
+            current_cabin = [camper]
+            processed_campers.add(camper['Name'])
+
+            if camper['Buddy']:
+                buddy = group_df.loc[(group_df['Name'] == camper['Buddy'])]
+                if not buddy.empty and len(current_cabin) < 11:
+                    current_cabin.append(buddy.iloc[0])
+                    processed_campers.add(buddy.iloc[0]['Name'])
+
+            # Find schoolmates within age range
+            schoolmates = group_df.loc[
+                (group_df['School'] == camper['School']) &
+                (group_df['Gender'] == camper['Gender']) &
+                (~group_df['Name'].isin(processed_campers)) &
+                (group_df['Age'] <= camper['Age'] + age_range) &
+                (group_df['Age'] >= camper['Age'] - age_range)]
+
             if not schoolmates.empty and len(current_cabin) + len(schoolmates) <= 12:
                 current_cabin.extend(schoolmates.to_dict('Records'))
-                processed_buddies.update(schoolmates['Name'])
-            else:
-                if len(current_cabin) < 12:
-                    current_cabin.append(camper)
-                    processed_buddies.add(camper['Name'])
-                else:
-                    cabins[cabin_counter] = current_cabin
-                    cabin_counter += 1
-                    current_cabin = [camper]
-                    processed_buddies.add(camper['Name'])
+                processed_campers.update(schoolmates['Name'])
 
-    if current_cabin:
-        cabins[cabin_counter] = current_cabin
+            while len(current_cabin) < 12:
+                remaining_campers = group_df.loc[
+                    ~group_df['Name'].isin(processed_campers) &
+                    (group_df['Age'] <= camper['Age'] + age_range) &
+                    (group_df['Age'] >= camper['Age'] - age_range)]
+
+                if not remaining_campers.empty:
+                    next_camper = remaining_campers.iloc[0]
+                    current_cabin.append(next_camper)
+                    processed_campers.add(next_camper['Name'])
+                else:
+                    break
+
+            cabins[cabin_counter] = current_cabin
+            cabin_counter += 1
+
+    # Write cabin pairings to a file
+    with open(output_file, 'w') as f:
+        for cabin_number, cabin in cabins.items():
+            f.write(f"Cabin {cabin_number}:\n")
+            for camper in cabin:
+                f.write(f"{camper['Name']}\n")
+            f.write("\n\n")
 
     return cabins
+
 
 
 def open_file_dialog():
@@ -141,17 +167,15 @@ def open_file_dialog():
     if file_path:
         campers_df = pd.read_csv(file_path)
         sorted_campers_df = campers_df.sort_values(by=['Gender', 'Grade'])
-        cabins = assign_cabins(sorted_campers_df)
-        for cabin_number, cabin in cabins.items():
-            print(f"Cabin {cabin_number}:")
-            for camper in cabin:
-                print(camper['Name'])
-                print()
+        if tight_coupling(): 
+            cabins = assign_cabins_aggressive(sorted_campers_df)
+        else: 
+            cabins = assign_cabins(sorted_campers_df)
 
 
-def tight_coupling_changed():
-    toggle_value = tight_coupling_var.get()
-    print("Tight coupling:", toggle_value)
+
+def tight_coupling():
+    return tight_coupling_var.get()
 
 #create the primary window 
 root = tk.Tk()
@@ -185,7 +209,7 @@ frame.pack(expand=True, fill="both")
 tight_coupling_label = ttk.Label(frame, text="Aggressive Grouping:", style="Custom.TLabel")
 tight_coupling_label.pack(pady=10)
 tight_coupling_var = tk.BooleanVar()
-tight_coupling_toggle = CustomToggle(frame, variable=tight_coupling_var, command=tight_coupling_changed)
+tight_coupling_toggle = CustomToggle(frame, variable=tight_coupling_var, command=tight_coupling)
 tight_coupling_toggle.pack(pady=5)
 
 
