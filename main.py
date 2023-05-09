@@ -7,6 +7,8 @@ from tkinter import ttk
 from tkinter import filedialog
 from tkinter import font
 
+# Custom Toggle Switch Design 10-40 
+
 class CustomToggle(tk.Canvas):
     def __init__(self, parent, variable, command=None, *args, **kwargs):
         super().__init__(parent, width=50, height=25, *args, **kwargs)
@@ -37,16 +39,115 @@ class CustomToggle(tk.Canvas):
             self.create_oval(5, 5, 25, 20, fill="white", outline="")
 
 
+# normal matching algorithm 
+def assign_cabins(sorted_campers_df):
+    cabins = {}
+    cabin_counter = 1
+    current_cabin = []
+    current_gender = None
+    processed_buddies = set()
 
+    for index, camper in sorted_campers_df.iterrows():
+        if camper['Name'] in processed_buddies:
+            continue
 
+        if current_gender is None:
+            current_gender = camper['Gender']
+
+        if camper['Gender'] != current_gender:
+            cabins[cabin_counter] = current_cabin
+            cabin_counter += 1
+            current_cabin = []
+            current_gender = camper['Gender']
+
+        if camper['Buddy']:
+            buddy = sorted_campers_df.loc[(sorted_campers_df['Name'] == camper['Buddy']) & (sorted_campers_df['Gender'] == camper['Gender'])]
+            if not buddy.empty and len(current_cabin) < 11:
+                current_cabin.extend([camper, buddy.iloc[0]])
+                processed_buddies.add(camper['Name'])
+                processed_buddies.add(buddy.iloc[0]['Name'])
+            elif len(current_cabin) < 12:
+                current_cabin.append(camper)
+                processed_buddies.add(camper['Name'])
+        else:
+            if len(current_cabin) < 12:
+                current_cabin.append(camper)
+                processed_buddies.add(camper['Name'])
+            else:
+                cabins[cabin_counter] = current_cabin
+                cabin_counter += 1
+                current_cabin = [camper]
+                processed_buddies.add(camper['Name'])
+
+    if current_cabin:
+        cabins[cabin_counter] = current_cabin
+
+    return cabins
+
+#aggressive matching algorithm (pairs based on school within normal constraints)
+def assign_cabins_aggressive(sorted_campers_df):
+    cabins = {}
+    cabin_counter = 1
+    current_cabin = []
+    current_gender = None
+    processed_buddies = set()
+
+    for index, camper in sorted_campers_df.iterrows():
+        if camper['Name'] in processed_buddies:
+            continue
+
+        if current_gender is None:
+            current_gender = camper['Gender']
+
+        if camper['Gender'] != current_gender:
+            cabins[cabin_counter] = current_cabin
+            cabin_counter += 1
+            current_cabin = []
+            current_gender = camper['Gender']
+
+        if camper['Buddy']:
+            buddy = sorted_campers_df.loc[(sorted_campers_df['Name'] == camper['Buddy']) & (sorted_campers_df['Gender'] == camper['Gender'])]
+            if not buddy.empty and len(current_cabin) < 11:
+                current_cabin.extend([camper, buddy.iloc[0]])
+                processed_buddies.add(camper['Name'])
+                processed_buddies.add(buddy.iloc[0]['Name'])
+            elif len(current_cabin) < 12:
+                current_cabin.append(camper)
+                processed_buddies.add(camper['Name'])
+        else:
+            schoolmates = sorted_campers_df.loc[(sorted_campers_df['School'] == camper['School']) & (sorted_campers_df['Gender'] == camper['Gender']) & (~sorted_campers_df['Name'].isin(processed_buddies))]
+            if not schoolmates.empty and len(current_cabin) + len(schoolmates) <= 12:
+                current_cabin.extend(schoolmates.to_dict('Records'))
+                processed_buddies.update(schoolmates['Name'])
+            else:
+                if len(current_cabin) < 12:
+                    current_cabin.append(camper)
+                    processed_buddies.add(camper['Name'])
+                else:
+                    cabins[cabin_counter] = current_cabin
+                    cabin_counter += 1
+                    current_cabin = [camper]
+                    processed_buddies.add(camper['Name'])
+
+    if current_cabin:
+        cabins[cabin_counter] = current_cabin
+
+    return cabins
 
 
 def open_file_dialog():
     file_path = filedialog.askopenfilename(
         filetypes=[("CSV files", "*.csv"), ("All files", "*.*")])
     if file_path:
-        print("File selected:", file_path)
-        # Process the selected file here
+        campers_df = pd.read_csv(file_path)
+        sorted_campers_df = campers_df.sort_values(by=['Gender', 'Grade'])
+        cabins = assign_cabins(sorted_campers_df)
+        for cabin_number, cabin in cabins.items():
+            print(f"Cabin {cabin_number}:")
+            for camper in cabin:
+                print(camper['Name'])
+                print()
+
 
 def tight_coupling_changed():
     toggle_value = tight_coupling_var.get()
