@@ -5,9 +5,12 @@ import pandas as pd
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
+import os
 
 def assign_cabins(sorted_campers_df, min_cabin_size=8, max_cabin_size=12, output_file='cabin_pairings.txt'):
     sorted_campers_df.reset_index(drop=True, inplace=True)
+    
+    output_path = os.path.join(os.path.expanduser("~"), "Documents", output_file)
 
     # Pre-processing step to find all buddy pairs
     buddy_columns = [col for col in sorted_campers_df.columns if 'Buddy' in col]
@@ -92,7 +95,7 @@ def assign_cabins(sorted_campers_df, min_cabin_size=8, max_cabin_size=12, output
                     break
 
     # Write the cabin assignments to a text file
-    with open(output_file, 'w') as file:
+    with open(output_path, 'w') as file:
         for i, cabin in enumerate(cabins, start=1):
             file.write(f"Cabin {i}:\n")
             for camper in cabin:
