@@ -12,7 +12,6 @@ def assign_cabins(sorted_campers_df, min_cabin_size=8, max_cabin_size=12, output
     
     output_path = os.path.join(os.path.expanduser("~"), "Documents", output_file)
 
-    # Pre-processing step to find all buddy pairs
     buddy_columns = [col for col in sorted_campers_df.columns if 'Buddy' in col]
 
     buddy_groups = []  # List to store buddy groups
@@ -20,89 +19,93 @@ def assign_cabins(sorted_campers_df, min_cabin_size=8, max_cabin_size=12, output
     for row_index, row in sorted_campers_df.iterrows():
         for column in buddy_columns:
             buddy_value = row[column]
-            if buddy_value in sorted_campers_df['Full Name'].values:  # Changed condition to check in 'Full Name' column
-                # The buddy value is present in the DataFrame and is not the current camper
+            if buddy_value in sorted_campers_df['Full Name'].values:
                 buddy_row = sorted_campers_df[sorted_campers_df['Full Name'] == buddy_value].iloc[0]
 
-                # Check gender equality
                 if buddy_row['Gender'] == row['Gender']:
-                    # Convert string grades to integers for comparison
                     curr_grade = int(row['2023 > Grade'][:-2])
                     buddy_grade = int(buddy_row['2023 > Grade'][:-2])
-
-                    # Check grade equality or difference of one
                     grade_diff = abs(buddy_grade - curr_grade)
                     if grade_diff == 0 or grade_diff == 1:
                         curr_name = row['Full Name']
-                        # Check if the current camper or their buddy is already in a group
                         group_found = False
                         for group in buddy_groups:
                             if curr_name in group or buddy_value in group:
-                                # Add both the camper and their buddy to the group
                                 group.add(curr_name)
                                 group.add(buddy_value)
                                 group_found = True
                                 break
                         if not group_found:
-                            # Create a new group with the camper and their buddy
                             buddy_groups.append(set([curr_name, buddy_value]))
 
-    # Merge any overlapping groups
     i = 0
     while i < len(buddy_groups) - 1:
         j = i + 1
         while j < len(buddy_groups):
-            # If the intersection of two groups is not empty, they overlap
             if buddy_groups[i].intersection(buddy_groups[j]):
-                # Merge the groups and remove the second group
                 buddy_groups[i].update(buddy_groups[j])
                 del buddy_groups[j]
             else:
                 j += 1
         i += 1
 
-    # Assign campers to cabins
-    cabins = []
+    cabins = {'Male': [], 'Female': []}  # Separate cabins by gender
     for group in buddy_groups:
+        group_list = list(group)
+        group_gender = sorted_campers_df[sorted_campers_df['Full Name'] == group_list[0]]['Gender'].values[0]
         if len(group) <= max_cabin_size:
-            cabins.append(list(group))
+            cabins[group_gender].append(group_list)
             for camper in group:
                 sorted_campers_df = sorted_campers_df[sorted_campers_df['Full Name'] != camper]
 
-    # Create cabins for the remaining campers, ordered by gender and grade
+    # Assign remaining campers to cabins
     for gender in sorted_campers_df['Gender'].unique():
         for grade in sorted(sorted_campers_df['2023 > Grade'].unique()):
             campers = sorted_campers_df[(sorted_campers_df['Gender'] == gender) & (sorted_campers_df['2023 > Grade'] == grade)]['Full Name'].tolist()
             while len(campers) > 0:
                 camper_added = False
-                for cabin in cabins:
-                    if len(cabin) < 10:
+                for cabin in cabins[gender]:
+                    if len(cabin) < max_cabin_size:
                         cabin.append(campers.pop())
                         camper_added = True
                         break
                 if not camper_added:
-                    cabins.append([campers.pop()])
+                    cabins[gender].append([campers.pop()])
 
-    # Merge smaller cabins
-    for i, cabin1 in enumerate(cabins):
-        if len(cabin1) < min_cabin_size:
-            for j in range(i + 1, len(cabins)):
-                cabin2 = cabins[j]
-                # Check if cabins can be merged
-                if len(cabin1) + len(cabin2) <= max_cabin_size:
-                    cabin1.extend(cabin2)
-                    cabins.pop(j)
-                    break
+    # Merge smaller cabins if they are of the same gender
+    for gender in cabins:
+        i = 0
+        while i < len(cabins[gender]):
+            if len(cabins[gender][i]) < min_cabin_size:
+                for j in range(i + 1, len(cabins[gender])):
+                    if len(cabins[gender][i]) + len(cabins[gender][j]) <= max_cabin_size:
+                        cabins[gender][i].extend(cabins[gender][j])
+                        cabins[gender].pop(j)
+                        break
+                else:  # Only increase i if no merge occurred
+                    i += 1
+            else:  # Cabin size is already ok, move to the next
+                i += 1
+
+    # Combine the lists of cabins for each gender, alternating between them
+    combined_cabins = [None]*(len(cabins['Male'])+len(cabins['Female']))
+    combined_cabins[::2] = cabins['Male']
+    combined_cabins[1::2] = cabins['Female']
 
     # Write the cabin assignments to a text file
     with open(output_path, 'w') as file:
-        for i, cabin in enumerate(cabins, start=1):
-            file.write(f"Cabin {i}:\n")
+        for i, cabin in enumerate(combined_cabins, start=1):
+            if i % 2 == 1:
+                file.write(f"Male Cabin {i//2 + 1}:\n")
+            else:
+                file.write(f"Female Cabin {i//2}:\n")
             for camper in cabin:
                 file.write(f"{camper}\n")
             file.write("\n")  # Add a blank line between cabins
 
     print("Cabin assignments have been written to the output file.")
+
+
 
 
 #allows the user to open a .csv file for processing 
