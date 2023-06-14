@@ -1,16 +1,21 @@
 # Written by Toby Klauder (Lil Dip) - 2023. 
 # If anybody is reading this and has questions, call 206-696-1071
 
+import re
 import pandas as pd
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 import os
 
-def assign_cabins(sorted_campers_df, min_cabin_size=8, max_cabin_size=12, output_file='cabin_pairings.txt'):
+# Function to check if a substring (search) is present in a string (text) using case-insensitive comparison
+def is_substring_in_string(search, text):
+    return re.search(search, text, re.IGNORECASE) is not None
+
+def assign_cabins(sorted_campers_df, min_cabin_size=8, max_cabin_size=10, output_file='cabin_pairings.txt'):
     sorted_campers_df.reset_index(drop=True, inplace=True)
-    
-    output_path = os.path.join(os.path.expanduser("~"), "Documents", output_file)
+
+    output_path = os.path.join(os.path.expanduser("~"), "Documents/Bunked", output_file)
 
     buddy_columns = [col for col in sorted_campers_df.columns if 'Buddy' in col]
 
@@ -70,7 +75,13 @@ def assign_cabins(sorted_campers_df, min_cabin_size=8, max_cabin_size=12, output
                         camper_added = True
                         break
                 if not camper_added:
-                    cabins[gender].append([campers.pop()])
+                    if len(campers) >= max_cabin_size:  # Create a new cabin if there are at least 10 campers remaining
+                        cabins[gender].append(campers[:max_cabin_size])
+                        campers = campers[max_cabin_size:]
+                    else:  # Assign remaining campers to the last cabin, even if it's less than 10
+                        cabins[gender][-1].extend(campers)
+                        campers = []
+
 
     # Merge smaller cabins if they are of the same gender
     for gender in cabins:
@@ -87,21 +98,14 @@ def assign_cabins(sorted_campers_df, min_cabin_size=8, max_cabin_size=12, output
             else:  # Cabin size is already ok, move to the next
                 i += 1
 
-    # Combine the lists of cabins for each gender, alternating between them
-    combined_cabins = [None]*(len(cabins['Male'])+len(cabins['Female']))
-    combined_cabins[::2] = cabins['Male']
-    combined_cabins[1::2] = cabins['Female']
-
     # Write the cabin assignments to a text file
     with open(output_path, 'w') as file:
-        for i, cabin in enumerate(combined_cabins, start=1):
-            if i % 2 == 1:
-                file.write(f"Male Cabin {i//2 + 1}:\n")
-            else:
-                file.write(f"Female Cabin {i//2}:\n")
-            for camper in cabin:
-                file.write(f"{camper}\n")
-            file.write("\n")  # Add a blank line between cabins
+        for gender in cabins:
+            for i, cabin in enumerate(cabins[gender], start=1):
+                file.write(f"{gender} Cabin {i}:\n")
+                for camper in cabin:
+                    file.write(f"{camper}\n")
+                file.write("\n")  # Add a blank line between cabins
 
     print("Cabin assignments have been written to the output file.")
 
@@ -126,15 +130,12 @@ def open_file_dialog():
         # Make sure to drop the 'SortValue' column after sorting
         sorted_campers_df.drop('SortValue', axis=1, inplace=True)
 
-  
-        cabins = assign_cabins(sorted_campers_df)
+        assign_cabins(sorted_campers_df)
 
 
-
-#create the primary window 
-root = tk.Tk()
-root.title("Bunk'ed")
-root.geometry("200x120")
+window = tk.Tk()
+window.title("Bunk'ed")
+window.geometry("200x120")
 
 #create the style object
 style = ttk.Style()
@@ -149,21 +150,23 @@ style.configure("Custom.TCheckbutton", background="#8ecae6")
 
 
 # Header frame
-header_frame = tk.Frame(root, bg="#023047")
+header_frame = tk.Frame(window, bg="#023047")
 header_frame.pack(side="top", fill="x")
 header_label = tk.Label(header_frame, text="Bunk'ed", font=("Comic Sans MS", 25), bg="#023047", fg="white")
 header_label.pack(pady=5)
 
 #set baby blue background color for the frame 
-frame = ttk.Frame(root, padding="10 10 10 10", style="Custom.TFrame")
+frame = ttk.Frame(window, padding="10 10 10 10", style="Custom.TFrame")
 style.configure("Custom.TFrame", background="#8ecae6")
 frame.pack(expand=True, fill="both")
 
 
 #open file dialog to collect the .csv camper file 
-attach_button = ttk.Button(frame, text="Attach File", style="Custom.TButton", command=open_file_dialog)
+attach_button = ttk.Button(frame, text="Camper Data", style="Custom.TButton", command=open_file_dialog)
 attach_button.pack(pady=5, anchor="center")
 
-root.mainloop()
+window.mainloop()
+
+
 
 
