@@ -1,113 +1,243 @@
 # Written by Toby Klauder (Lil Dip) - 2023. 
 # If anybody is reading this and has questions, call 206-696-1071
-
-import re
 import pandas as pd
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 import os
 
-# Function to check if a substring (search) is present in a string (text) using case-insensitive comparison
-def is_substring_in_string(search, text):
-    return re.search(search, text, re.IGNORECASE) is not None
+MIN_CABIN_SIZE = 8
+MAX_CABIN_SIZE = 10
 
-def assign_cabins(sorted_campers_df, min_cabin_size=8, max_cabin_size=10, output_file='cabin_pairings.txt'):
-    sorted_campers_df.reset_index(drop=True, inplace=True)
+def create_buddy_groups(sorted_campers_df, buddy_columns):
+    """Create buddy groups based on mutual buddy preferences."""
+    
+    # Create buddy groups
+    buddy_groups = []
 
-    output_path = os.path.join(os.path.expanduser("~"), "Documents/Bunked", output_file)
-
-    buddy_columns = [col for col in sorted_campers_df.columns if 'Buddy' in col]
-
-    buddy_groups = []  # List to store buddy groups
-
-    for row_index, row in sorted_campers_df.iterrows():
+    for _, row in sorted_campers_df.iterrows():
         for column in buddy_columns:
             buddy_value = row[column]
-            if buddy_value in sorted_campers_df['Full Name'].values:
-                buddy_row = sorted_campers_df[sorted_campers_df['Full Name'] == buddy_value].iloc[0]
+            if pd.isna(buddy_value):  # Skip if no buddy
+                continue
 
-                if buddy_row['Gender'] == row['Gender']:
-                    curr_grade = int(row['2023 > Grade'][:-2])
-                    buddy_grade = int(buddy_row['2023 > Grade'][:-2])
-                    grade_diff = abs(buddy_grade - curr_grade)
-                    if grade_diff == 0 or grade_diff == 1:
-                        curr_name = row['Full Name']
-                        group_found = False
-                        for group in buddy_groups:
-                            if curr_name in group or buddy_value in group:
-                                group.add(curr_name)
-                                group.add(buddy_value)
-                                group_found = True
-                                break
-                        if not group_found:
-                            buddy_groups.append(set([curr_name, buddy_value]))
+            buddy_rows = sorted_campers_df[sorted_campers_df['Full Name'] == buddy_value]
+            if buddy_rows.empty:  # Skip if buddy not found
+                continue
 
+            buddy_row = buddy_rows.iloc[0]
+            if buddy_row['Gender'] != row['Gender']:  # Skip if different gender
+                continue
+
+            curr_grade = int(row['2023 > Grade'][:-2])
+            buddy_grade = int(buddy_row['2023 > Grade'][:-2])
+            grade_diff = abs(buddy_grade - curr_grade)
+            if grade_diff > 1:  # Skip if grade difference is too large
+                continue
+
+            # Find or create a group for current camper and buddy
+            curr_name = row['Full Name']
+            buddy_group = next((group for group in buddy_groups if curr_name in group), None)
+            if buddy_group is None:
+                buddy_group = set()
+                buddy_groups.append(buddy_group)
+            buddy_group.update([curr_name, buddy_value])
+
+    for buddy_group in buddy_groups: 
+        print(buddy_group)
+
+    return buddy_groups
+
+def merge_intersecting_groups(buddy_groups):
+    """Merge intersecting buddy groups into one."""
+    # Merge intersecting groups
     i = 0
-    while i < len(buddy_groups) - 1:
+    while i < len(buddy_groups):
         j = i + 1
         while j < len(buddy_groups):
-            if buddy_groups[i].intersection(buddy_groups[j]):
+            if not buddy_groups[i].isdisjoint(buddy_groups[j]):
                 buddy_groups[i].update(buddy_groups[j])
                 del buddy_groups[j]
             else:
                 j += 1
         i += 1
 
-    cabins = {'Male': [], 'Female': []}  # Separate cabins by gender
+    return buddy_groups 
+
+def assign_groups_to_cabins(buddy_groups, sorted_campers_df, max_cabin_size):
+    """Assign buddy groups to cabins, splitting large groups if necessary."""
+     # Split large groups and assign to cabins
+    cabins = {'Male': [], 'Female': []}
     for group in buddy_groups:
         group_list = list(group)
         group_gender = sorted_campers_df[sorted_campers_df['Full Name'] == group_list[0]]['Gender'].values[0]
-        if len(group) <= max_cabin_size:
-            cabins[group_gender].append(group_list)
-            for camper in group:
-                sorted_campers_df = sorted_campers_df[sorted_campers_df['Full Name'] != camper]
+        while len(group_list) > 0:
+            cabin_size = min(len(group_list), max_cabin_size)
+            cabin = group_list[:cabin_size]
+            cabins[group_gender].append(cabin)
+            group_list = group_list[cabin_size:]
+    
+    return cabins
 
-    # Assign remaining campers to cabins
-    for gender in sorted_campers_df['Gender'].unique():
-        for grade in sorted(sorted_campers_df['2023 > Grade'].unique()):
-            campers = sorted_campers_df[(sorted_campers_df['Gender'] == gender) & (sorted_campers_df['2023 > Grade'] == grade)]['Full Name'].tolist()
-            while len(campers) > 0:
-                camper_added = False
-                for cabin in cabins[gender]:
-                    if len(cabin) < max_cabin_size:
-                        cabin.append(campers.pop())
-                        camper_added = True
-                        break
-                if not camper_added:
-                    if len(campers) >= max_cabin_size:  # Create a new cabin if there are at least 10 campers remaining
-                        cabins[gender].append(campers[:max_cabin_size])
-                        campers = campers[max_cabin_size:]
-                    else:  # Assign remaining campers to the last cabin, even if it's less than 10
-                        cabins[gender][-1].extend(campers)
-                        campers = []
+def verify_cabin_grade_restriction(cabin, sorted_campers_df):
+    cabin_grades = [int(sorted_campers_df[sorted_campers_df['Full Name'] == camper]['2023 > Grade'].values[0][:-2]) for camper in cabin]
+    min_grade = min(cabin_grades)
+    max_grade = max(cabin_grades)
+    if max_grade - min_grade > 1:
+        return False
+    return True
 
-
-    # Merge smaller cabins if they are of the same gender
-    for gender in cabins:
-        i = 0
-        while i < len(cabins[gender]):
-            if len(cabins[gender][i]) < min_cabin_size:
-                for j in range(i + 1, len(cabins[gender])):
-                    if len(cabins[gender][i]) + len(cabins[gender][j]) <= max_cabin_size:
-                        cabins[gender][i].extend(cabins[gender][j])
-                        cabins[gender].pop(j)
-                        break
-                else:  # Only increase i if no merge occurred
-                    i += 1
-            else:  # Cabin size is already ok, move to the next
-                i += 1
-
-    # Write the cabin assignments to a text file
-    with open(output_path, 'w') as file:
-        for gender in cabins:
-            for i, cabin in enumerate(cabins[gender], start=1):
-                file.write(f"{gender} Cabin {i}:\n")
+def write_cabin_assignments_to_file(cabins, sorted_campers_df, output_path):
+    """Write cabin assignments to a text file."""
+    # Write cabin assignments to output file
+    with open(output_path, 'w') as f:
+        i = 1
+        male_index = 0
+        female_index = 0
+        while male_index < len(cabins['Male']) or female_index < len(cabins['Female']):
+            if male_index < len(cabins['Male']):
+                cabin = cabins['Male'][male_index]
+                f.write(f"Male Cabin {i}:\n")
                 for camper in cabin:
-                    file.write(f"{camper}\n")
-                file.write("\n")  # Add a blank line between cabins
+                    # Fetch camper's grade from the DataFrame
+                    camper_grade = sorted_campers_df[sorted_campers_df['Full Name'] == camper]['2023 > Grade'].values[0]
+                    f.write(f"{camper}, Grade: {camper_grade}\n")
+                f.write("\n")
+                i += 1
+                male_index += 1
 
-    print("Cabin assignments have been written to the output file.")
+            if female_index < len(cabins['Female']):
+                cabin = cabins['Female'][female_index]
+                f.write(f"Female Cabin {i}:\n")
+                for camper in cabin:
+                    # Fetch camper's grade from the DataFrame
+                    camper_grade = sorted_campers_df[sorted_campers_df['Full Name'] == camper]['2023 > Grade'].values[0]
+                    f.write(f"{camper}, Grade: {camper_grade}\n")
+                f.write("\n")
+                i += 1
+                female_index += 1
+
+
+def assign_cabins(sorted_campers_df, output_file='cabin_pairings.txt'):
+    sorted_campers_df.reset_index(drop=True, inplace=True)
+
+    output_file = os.path.join(os.path.expanduser("~"), "Documents/Bunked", output_file)
+
+    buddy_columns = [col for col in sorted_campers_df.columns if 'Buddy' in col]
+
+    buddy_groups = create_buddy_groups(sorted_campers_df, buddy_columns)
+
+    buddy_groups = merge_intersecting_groups(buddy_groups)
+
+    cabins = assign_groups_to_cabins(buddy_groups, sorted_campers_df, MAX_CABIN_SIZE)
+
+    cabins = assign_remaining_campers(cabins, sorted_campers_df, MAX_CABIN_SIZE)
+
+    merge_cabins(cabins, MIN_CABIN_SIZE, MAX_CABIN_SIZE, sorted_campers_df)
+
+    cabins = sort_cabins_by_age(cabins, sorted_campers_df)
+
+    write_cabin_assignments_to_file(cabins, sorted_campers_df, output_file)
+
+    print("Cabin assignments have been written to an output file.")
+
+
+def sort_cabins_by_age(cabins, sorted_campers_df):
+    grade_to_num = {
+        'K': 0,
+        '1st': 1,
+        '2nd': 2,
+        '3rd': 3,
+        '4th': 4,
+        '5th': 5,
+        '6th': 6,
+        '7th': 7,
+        '8th': 8,
+        '9th': 9,
+        '10th': 10,
+        '11th': 11,
+        '12th': 12
+    }
+
+    sorted_campers_df['Numeric Grade'] = sorted_campers_df['2023 > Grade'].map(grade_to_num)
+
+    for gender in ['Male', 'Female']:
+        cabins_with_avg_grade = []
+        for cabin in cabins[gender]:
+            avg_grade = sorted_campers_df[sorted_campers_df['Full Name'].isin(cabin)]['Numeric Grade'].mean()
+            cabins_with_avg_grade.append((avg_grade, cabin))
+        # Sort cabins by average grade
+        cabins[gender] = [cabin for _, cabin in sorted(cabins_with_avg_grade)]
+
+    return cabins
+
+
+def merge_cabins(cabins, min_cabin_size, max_cabin_size, sorted_campers_df):
+    max_cabin_count = 30
+
+    for gender in ['Male', 'Female']:
+        sorted_cabins = sorted(cabins[gender], key=len)
+        i = 0
+        while i < len(sorted_cabins):
+            if len(sorted_cabins[i]) >= min_cabin_size:
+                i += 1
+                continue
+
+            # Try to merge with any other cabin
+            for j in range(len(sorted_cabins)):
+                if i != j and len(sorted_cabins[i]) + len(sorted_cabins[j]) <= max_cabin_size:
+                    temp_cabin = sorted_cabins[i] + sorted_cabins[j]
+                    if verify_cabin_grade_restriction(temp_cabin, sorted_campers_df):
+                        sorted_cabins[i] = temp_cabin
+                        del sorted_cabins[j]
+                        if j < i:
+                            i -= 1  # Recheck with merged cabin
+                        break
+            else:
+                # If the cabin is too small and cannot be merged, remove it
+                del sorted_cabins[i]
+            
+            if len(sorted_cabins) > max_cabin_count:
+                print(f"Maximum cabin limit reached for {gender}.")
+                sorted_cabins = sorted_cabins[:max_cabin_count]
+                break
+
+        cabins[gender] = sorted_cabins
+
+
+def assign_remaining_campers(cabins, sorted_campers_df, max_cabin_size):
+    max_cabin_count = 30
+
+    for _, row in sorted_campers_df.iterrows():
+        if any(row['Full Name'] in cabin for cabin in cabins[row['Gender']]):
+            continue
+        curr_grade = int(row['2023 > Grade'][:-2])
+        # Try to fill up existing cabins to their maximum size first
+        for cabin in sorted(cabins[row['Gender']], key=len, reverse=True):
+            if len(cabin) < max_cabin_size:
+                cabin_grades = [int(sorted_campers_df[sorted_campers_df['Full Name'] == camper]['2023 > Grade'].values[0][:-2]) for camper in cabin]
+                if max(cabin_grades) - min(cabin_grades) <= 1:
+                    cabin.append(row['Full Name'])
+                    # Verify grade restriction after adding the camper
+                    if not verify_cabin_grade_restriction(cabin, sorted_campers_df):
+                        cabin.remove(row['Full Name'])
+                    else:
+                        break
+        else:
+            # If no existing cabin can accommodate the camper, open a new one if limit is not reached
+            if len(cabins[row['Gender']]) < max_cabin_count:
+                cabins[row['Gender']].append([row['Full Name']])
+            else:
+                print(f"Maximum cabin limit reached for {row['Gender']}. Cannot assign camper {row['Full Name']}.")
+
+        # After assigning a camper, check the cabin count and reduce if necessary
+        if len(cabins[row['Gender']]) > max_cabin_count:
+            print(f"Maximum cabin limit reached for {row['Gender']}. Reducing cabin count.")
+            cabins[row['Gender']] = cabins[row['Gender']][:max_cabin_count]
+    
+    return cabins
+
+
 
 
 
