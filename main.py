@@ -87,35 +87,34 @@ def verify_cabin_grade_restriction(cabin, sorted_campers_df):
         return False
     return True
 
+
 def write_cabin_assignments_to_file(cabins, sorted_campers_df, output_path):
     """Write cabin assignments to a text file."""
-    # Write cabin assignments to output file
-    with open(output_path, 'w') as f:
-        i = 1
-        male_index = 0
-        female_index = 0
-        while male_index < len(cabins['Male']) or female_index < len(cabins['Female']):
-            if male_index < len(cabins['Male']):
-                cabin = cabins['Male'][male_index]
-                f.write(f"Male Cabin {i}:\n")
-                for camper in cabin:
-                    # Fetch camper's grade from the DataFrame
-                    camper_grade = sorted_campers_df[sorted_campers_df['Full Name'] == camper]['2023 > Grade'].values[0]
-                    f.write(f"{camper}, Grade: {camper_grade}\n")
-                f.write("\n")
-                i += 1
-                male_index += 1
 
-            if female_index < len(cabins['Female']):
-                cabin = cabins['Female'][female_index]
-                f.write(f"Female Cabin {i}:\n")
+    # Create the 'Documents/Bunked' directory if it doesn't exist
+    bunked_dir = os.path.join(os.path.expanduser("~"), "Documents/Bunked")
+    if not os.path.exists(bunked_dir):
+        os.makedirs(bunked_dir)
+
+    # Create the output file path
+    output_file = os.path.join(bunked_dir, output_path)
+
+    # Write cabin assignments to output file
+    with open(output_file, 'w') as f:
+        for gender in ['Male', 'Female']:
+            i = 1
+            for cabin in cabins[gender]:
+                f.write(f"{gender} Cabin {i}:\n")
                 for camper in cabin:
                     # Fetch camper's grade from the DataFrame
-                    camper_grade = sorted_campers_df[sorted_campers_df['Full Name'] == camper]['2023 > Grade'].values[0]
+                    camper_grade = sorted_campers_df.loc[sorted_campers_df['Full Name'] == camper, '2023 > Grade'].values[0]
                     f.write(f"{camper}, Grade: {camper_grade}\n")
                 f.write("\n")
                 i += 1
-                female_index += 1
+
+    print("Cabin assignments have been written to an output file.")
+
+
 
 
 def assign_cabins(sorted_campers_df, output_file='cabin_pairings.txt'):
@@ -138,8 +137,6 @@ def assign_cabins(sorted_campers_df, output_file='cabin_pairings.txt'):
     cabins = sort_cabins_by_age(cabins, sorted_campers_df)
 
     write_cabin_assignments_to_file(cabins, sorted_campers_df, output_file)
-
-    print("Cabin assignments have been written to an output file.")
 
 
 def sort_cabins_by_age(cabins, sorted_campers_df):
