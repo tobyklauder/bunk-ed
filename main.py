@@ -9,6 +9,57 @@ import os
 MIN_CABIN_SIZE = 8
 MAX_CABIN_SIZE = 10
 
+def debug_verify_all_campers_assigned(sorted_campers_df, cabins):
+    unassigned_campers = []
+
+    # Checking if all the campers are assigned to a cabin
+    for _, row in sorted_campers_df.iterrows():
+        camper_found = False
+        for gender in ['Male', 'Female']:
+            for cabin in cabins[gender]:
+                if row['Full Name'] in cabin:
+                    camper_found = True
+                    break
+            if camper_found:
+                break
+
+        if not camper_found:
+            unassigned_campers.append(row['Full Name'])
+
+    if unassigned_campers:
+        # Create a dictionary to group cabins by grade and gender
+        grouped_cabins = {}
+        for gender in ['Male', 'Female']:
+            for grade in sorted_campers_df['2023 > Grade'].unique():
+                grouped_cabins[(gender, grade)] = []
+                for cabin in cabins[gender]:
+                    for camper in cabin:
+                        assigned_camper_info = sorted_campers_df.loc[sorted_campers_df['Full Name'] == camper]
+                        if assigned_camper_info['2023 > Grade'].item() == grade:
+                            grouped_cabins[(gender, grade)].append(cabin)
+                            break
+
+        # Iterate through the unassigned campers and assign them to the appropriate cabin
+        for camper in unassigned_campers.copy():
+            unassigned_camper_info = sorted_campers_df.loc[sorted_campers_df['Full Name'] == camper]
+            grade = unassigned_camper_info['2023 > Grade'].item()
+            gender = unassigned_camper_info['Gender'].item()
+
+            # Append the camper to the appropriate cabin
+            appropriate_cabins = grouped_cabins.get((gender, grade), [])
+            if appropriate_cabins:
+                appropriate_cabins[0].append(camper)
+                unassigned_campers.remove(camper)
+   
+        print(unassigned_campers)
+
+    else:
+        print("All campers have been assigned to a cabin.")
+
+    return unassigned_campers
+
+
+
 def create_buddy_groups(sorted_campers_df, buddy_columns):
     """Create buddy groups based on mutual buddy preferences."""
     
@@ -66,7 +117,7 @@ def merge_intersecting_groups(buddy_groups):
 
 def assign_groups_to_cabins(buddy_groups, sorted_campers_df, max_cabin_size):
     """Assign buddy groups to cabins, splitting large groups if necessary."""
-     # Split large groups and assign to cabins
+    # Copy cabins to avoid in-place modifications
     cabins = {'Male': [], 'Female': []}
     for group in buddy_groups:
         group_list = list(group)
@@ -76,7 +127,7 @@ def assign_groups_to_cabins(buddy_groups, sorted_campers_df, max_cabin_size):
             cabin = group_list[:cabin_size]
             cabins[group_gender].append(cabin)
             group_list = group_list[cabin_size:]
-    
+
     return cabins
 
 def verify_cabin_grade_restriction(cabin, sorted_campers_df):
@@ -100,19 +151,23 @@ def write_cabin_assignments_to_file(cabins, sorted_campers_df, output_path):
     output_file = os.path.join(bunked_dir, output_path)
 
     # Write cabin assignments to output file
-    with open(output_file, 'w') as f:
-        for gender in ['Male', 'Female']:
-            i = 1
-            for cabin in cabins[gender]:
-                f.write(f"{gender} Cabin {i}:\n")
-                for camper in cabin:
-                    # Fetch camper's grade from the DataFrame
-                    camper_grade = sorted_campers_df.loc[sorted_campers_df['Full Name'] == camper, '2023 > Grade'].values[0]
-                    f.write(f"{camper}, Grade: {camper_grade}\n")
-                f.write("\n")
-                i += 1
+    try:
+        with open(output_file, 'w') as f:
+            # Iterate over the cabins in an alternating gender manner
+            for i in range(max(len(cabins['Male']), len(cabins['Female']))):
+                for gender in ['Male', 'Female']:
+                    if i < len(cabins[gender]):
+                        cabin = cabins[gender][i]
+                        f.write(f"{gender} Cabin {2*i + 1 + (gender == 'Female')}:\n")
+                        for camper in cabin:
+                            # Fetch camper's grade from the DataFrame
+                            camper_grade = sorted_campers_df.loc[sorted_campers_df['Full Name'] == camper, '2023 > Grade'].values[0]
+                            f.write(f"{camper}, Grade: {camper_grade}\n")
+                        f.write("\n")
 
-    print("Cabin assignments have been written to an output file.")
+        print("Cabin assignments have been written to an output file.")
+    except Exception as e:
+        print("An error occurred while writing to the file:", str(e))
 
 
 
@@ -135,6 +190,9 @@ def assign_cabins(sorted_campers_df, output_file='cabin_pairings.txt'):
     merge_cabins(cabins, MIN_CABIN_SIZE, MAX_CABIN_SIZE, sorted_campers_df)
 
     cabins = sort_cabins_by_age(cabins, sorted_campers_df)
+
+    # Add this line of code before writing the final output
+    unassigned_campers = debug_verify_all_campers_assigned(sorted_campers_df, cabins)
 
     write_cabin_assignments_to_file(cabins, sorted_campers_df, output_file)
 
@@ -213,13 +271,12 @@ def assign_remaining_campers(cabins, sorted_campers_df, max_cabin_size):
         for cabin in sorted(cabins[row['Gender']], key=len, reverse=True):
             if len(cabin) < max_cabin_size:
                 cabin_grades = [int(sorted_campers_df[sorted_campers_df['Full Name'] == camper]['2023 > Grade'].values[0][:-2]) for camper in cabin]
-                if max(cabin_grades) - min(cabin_grades) <= 1:
-                    cabin.append(row['Full Name'])
-                    # Verify grade restriction after adding the camper
-                    if not verify_cabin_grade_restriction(cabin, sorted_campers_df):
-                        cabin.remove(row['Full Name'])
-                    else:
-                        break
+                cabin.append(row['Full Name'])
+                # Verify grade restriction after adding the camper
+                if not verify_cabin_grade_restriction(cabin, sorted_campers_df):
+                    cabin.remove(row['Full Name'])
+                else:
+                    break
         else:
             # If no existing cabin can accommodate the camper, open a new one if limit is not reached
             if len(cabins[row['Gender']]) < max_cabin_count:
@@ -227,11 +284,12 @@ def assign_remaining_campers(cabins, sorted_campers_df, max_cabin_size):
             else:
                 print(f"Maximum cabin limit reached for {row['Gender']}. Cannot assign camper {row['Full Name']}.")
 
-        # After assigning a camper, check the cabin count and reduce if necessary
-        if len(cabins[row['Gender']]) > max_cabin_count:
-            print(f"Maximum cabin limit reached for {row['Gender']}. Reducing cabin count.")
-            cabins[row['Gender']] = cabins[row['Gender']][:max_cabin_count]
-    
+    # Check the cabin count and reduce if necessary
+    for gender in ['Male', 'Female']:
+        if len(cabins[gender]) > max_cabin_count:
+            print(f"Maximum cabin limit reached for {gender}. Reducing cabin count.")
+            cabins[gender] = cabins[gender][:max_cabin_count]
+
     return cabins
 
 
