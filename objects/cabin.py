@@ -2,25 +2,48 @@
 
 class Cabin: 
 
-    # Private internal state
+    _cabin_count =  0 # The number of cabins created (static)
 
-    _campers = []
-    _counselor = ""
-    _cabin_name = ""
-    _cabin_number = 0
-    _cabin_gender = 0 # 0 for male, 1 for female, 2 for other 
-    _cabin_grade = [] 
+    def __init__(self, _cabin_gender) -> None:
+        """
+        Initializes a cabin object.
 
-    def __init__(self, _cabin_number, _cabin_gender) -> None:
-        self._cabin_number = _cabin_number
+        args:
+        _cabin_gender: the cabin gender as a number (0 for male, 1 for female)
+        _cabin_number: the cabin number
+        """
         self._cabin_gender = _cabin_gender 
+        self._campers = [] 
+        self.cabin_grade = [] 
+        self._cabin_name = ""
+
+        # Set the cabin number and increment the cabin count
+        self._cabin_number = Cabin._cabin_count
+        Cabin._cabin_count += 1
+
+        # Set the cabin's counselor (not stored by default according to client)
+        self._counselor = ""
 
 
     def validate_camper(self, camper) -> bool:
-        """Ensures that the camper is a valid addition to the cabin."""
+        """
+        Ensures that the camper is a valid addition to the cabin.
+        
+        args:
+        camper: camper object to validate with the cabin
+
+        returns: 
+        True if the camper is valid to add to the cabin
+        """
+
+        # Assume camper is valid to add to the cabin
         add_flag = True
+
+        # For all campers in the cabin, check if the camper is a valid pair
         for o_camper in self._campers: 
             if o_camper.valid_pair(camper) == False: 
+
+                # If any camper is not a valid match to the camper, the camper is not valid to be added to the cabin. 
                 add_flag = False
 
         return add_flag
@@ -57,29 +80,77 @@ class Cabin:
 
 
     def remove_camper(self, camper):
+        """
+        Removes the camper from the cabin.
+
+        args: 
+            camper: camper object to remove from the cabin
+        """
         self._campers.remove(camper)
 
     # Setters
 
     def set_counselor(self, counselor):
+        """
+        Sets the cabin's counselor. 
+
+        args: 
+         counselor: the counselor's name
+        """
         self._counselor = counselor
 
     def set_cabin_name(self, name): 
+        """
+        Sets the cabin's name. 
+
+        args: 
+            name: the cabin's name
+        """
         self._cabin_name = name 
     
     # Getters 
 
     def get_counselor(self) -> str:
+        """
+        Gets the counselor of the cabin. 
+
+        args: 
+            name: the counselors name 
+        """
         return self._counselor
     
     def get_cabin_name(self) -> str:
+        """
+        Get's the name of the cabin.
+
+        returns: 
+            the name of the cabin
+        """
         return self._cabin_name
     
     def get_cabin_number(self) -> int:
+        """
+        Gets the cabin number.
+
+        returns:
+            the cabin number
+        """
         return self._cabin_number
     
     def get_cabin_gender(self) -> int: 
+        """
+        Get the cabin gender 
+
+        returns: 
+            the cabin gender 
+        """
         return self._cabin_gender
     
-    def get_campers(self) -> list: 
+    def get_campers(self) -> list:
+        """
+        Gets the campers in the cabin.
+
+        returns: 
+            list of campers in the cabin 
+        """ 
         return self._campers

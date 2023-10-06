@@ -3,13 +3,23 @@ from tkinter import ttk
 from tkinter import filedialog
 import pandas as pd 
 from processing.file_processing import scrape_camper_csv
-from processing.generateCabins import gen_buddy_groups
+from processing.genBuddyGroups import gen_buddy_groups
+from processing.genBuddyGroups import debug_buddy_groups
 
 class BunkedGui:
 
     _df = None
 
-    def __init__(self, root):
+    def __init__(self, root) -> None:
+        """
+        Initalize the tkinter window 
+
+        args:
+            root: the root of the tkinter window
+
+        returns:
+            None
+        """
         self.root = root
 
         # Set the title for the window 
@@ -44,45 +54,57 @@ class BunkedGui:
         frame = ttk.Frame(self.root, padding="10 10 10 10", style="Custom.TFrame")
         frame.pack(expand=True, fill="both")
 
-        attach_button = ttk.Button(frame, text="Camper Data", style="Custom.TButton", command=self.open_file_dialog)
+        attach_button = ttk.Button(frame, text="Camper Data", style="Custom.TButton", command=self.get_csv)
         attach_button.pack(pady=5, anchor="center")
 
-    def open_file_dialog(self): 
+    def get_csv(self): 
         file_path = filedialog.askopenfilename(
-        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")])
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+
+        _df = None
+
         if file_path:
-            campers_df = pd.read_csv(file_path)
+            _df = pd.read_csv(file_path)
+            self.process_csv(_df)
 
-            column_names = {} 
+        return _df 
+    
+    def process_csv(self, campers_df):
 
-            grade_column = campers_df.filter(like="Grade").columns[0]
-            column_names["Grade"] = grade_column
+        column_names = {} 
 
-            age_column = campers_df.filter(like="Age").columns[0]
-            column_names["Age"] = age_column
+        grade_column = campers_df.filter(like="Grade").columns[0]
+        column_names["Grade"] = grade_column
 
-            gender_column = campers_df.filter(like="Gender").columns[0]
-            column_names["Gender"] = gender_column
+        age_column = campers_df.filter(like="Age").columns[0]
+        column_names["Age"] = age_column
 
-            buddy_columns = campers_df.filter(like="Buddy").columns
-            column_names["Buddy"] = buddy_columns
+        gender_column = campers_df.filter(like="Gender").columns[0]
+        column_names["Gender"] = gender_column
 
-            campers_df['Full Name'] = campers_df['First name'] + ' ' + campers_df['Last name']  # new line to create 'Full Name'
+        buddy_columns = campers_df.filter(like="Buddy").columns
+        column_names["Buddy"] = buddy_columns
+
+        campers_df['Full Name'] = campers_df['First name'] + ' ' + campers_df['Last name']  # new line to create 'Full Name'
             
             # Create a new column 'SortValue' in the DataFrame where if the 'Age' is less than or equal to 0,
             # it will take the value of '2023 > Grade' otherwise it will take the value of 'Age'
-            campers_df['SortValue'] = campers_df[age_column].where(campers_df[age_column] > 0, campers_df[grade_column])
+        campers_df['SortValue'] = campers_df[age_column].where(campers_df[age_column] > 0, campers_df[grade_column])
 
             # Now sort the DataFrame based on the 'SortValue' and 'Gender' columns
-            sorted_campers_df = campers_df.sort_values(by=[gender_column, 'SortValue'])
+        sorted_campers_df = campers_df.sort_values(by=[gender_column, 'SortValue'])
 
             # Make sure to drop the 'SortValue' column after sorting
-            sorted_campers_df.drop('SortValue', axis=1, inplace=True)
+        sorted_campers_df.drop('SortValue', axis=1, inplace=True)
 
-            campers_dict = scrape_camper_csv(sorted_campers_df, column_names)
+        campers_dict = scrape_camper_csv(sorted_campers_df, column_names)
             
-            print(gen_buddy_groups(sorted_campers_df, campers_dict)) 
-    
+        buddy_groups = gen_buddy_groups(sorted_campers_df, campers_dict)
+
+        debug_buddy_groups(buddy_groups)
+
+        
     def get_data_frame(self): 
         return self._df
 

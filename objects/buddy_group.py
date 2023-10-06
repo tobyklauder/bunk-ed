@@ -1,21 +1,69 @@
+#Author: Toby Klauder 
+
+from typing import List
+
 class BuddyGroup: 
 
-    _members = [] 
-    _grades = []
-    _gender = ""
-
-    def __str__(self): 
-        out = ""
-
-        for member in self._members: 
-            out += str(member.get_name()) + "\n"
-
-        return out
+    def __init__(self):
+        """
+        Creates a buddy group object. 
+        """
+        self. _members = [] 
+        self._grades = []
+        self._gender = ""
     
-    def get_grades(self):
+    def get_grades(self) -> List[int]:
+        """
+        Get the grades of the group (should be no more than 2)
+
+        returns:
+            the grades of the group
+        """
         return self._grades
     
+    def get_members(self) -> List[str]:
+        """
+        Gets the members of the group 
+
+        returns: 
+            the members of the group 
+        """
+        return self._members
+    
+    def is_member_in_group(self, member) -> bool:
+        """
+        Checks if a member is already in the group 
+
+        returns: 
+            True if the member is in the group, False otherwise
+        """
+        return member in self._members
+    
+    def get_members_count(self) -> int:
+        """
+        Get the total count of all members in the group
+
+        returns: 
+            the total count of all members in the group
+        """
+        return len(self._members)
+    
+    def clear_members(self) -> None:
+        """
+        Clears all of the members of the group 
+
+        returns: 
+            None
+        """
+        self._members.clear()
+    
     def get_gender(self): 
+        """
+        Get the gender of the group 
+
+        returns: 
+            the gender of the group 
+        """
         return self._gender 
     
     def remove_member(self, member):
