@@ -5,6 +5,7 @@ import pandas as pd
 from processing.file_processing import scrape_camper_csv
 from processing.genBuddyGroups import gen_buddy_groups
 from processing.genBuddyGroups import debug_buddy_groups
+from processing.genCabins import assign_cabins
 
 class BunkedGui:
 
@@ -103,6 +104,8 @@ class BunkedGui:
         buddy_groups = gen_buddy_groups(sorted_campers_df, campers_dict)
 
         debug_buddy_groups(buddy_groups)
+        
+        assign_cabins(buddy_groups)
 
         
     def get_data_frame(self): 

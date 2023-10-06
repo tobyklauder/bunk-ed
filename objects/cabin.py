@@ -4,7 +4,7 @@ class Cabin:
 
     _cabin_count =  0 # The number of cabins created (static)
 
-    def __init__(self, _cabin_gender) -> None:
+    def __init__(self) -> None:
         """
         Initializes a cabin object.
 
@@ -12,7 +12,7 @@ class Cabin:
         _cabin_gender: the cabin gender as a number (0 for male, 1 for female)
         _cabin_number: the cabin number
         """
-        self._cabin_gender = _cabin_gender 
+        self._cabin_gender = ""
         self._campers = [] 
         self.cabin_grade = [] 
         self._cabin_name = ""
@@ -59,9 +59,12 @@ class Cabin:
             1 if the camper was successfully added to the cabin
             -1 if the cabin is full
         """
-
-        # If the cabin already has the maximum number of campers
-        if len(self._campers) >= 10:
+        
+        if len(self._campers) == 0: 
+            self._cabin_gender = camper.get_gender() 
+        
+        # If the cabin already has the maximum number of campers or gender does not match 
+        if len(self._campers) >= 10 or self._cabin_gender != camper.get_gender():
             return -1
         
         # If the camper's grade isn't in the cabin grade and cabin grade has less than 2 distinct grades
