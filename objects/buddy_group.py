@@ -25,6 +25,9 @@ class BuddyGroup:
         # If first added to the group, the group is of that gender 
         if self._gender == "": 
             self._gender = member.get_gender() 
+            
+        if len(self._members) == 10: 
+            return -1 
 
         if member.get_gender() != self._gender: 
             return -1 

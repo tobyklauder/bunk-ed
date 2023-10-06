@@ -9,12 +9,4 @@ This system takes in a .csv file. The file must include columns: "Name", "Age", 
 
 Campers will be matched to other campers of the same grade. Campers will also be reasonably placed with a buddy of their choosing if their buddy is also within the reasonable user defined paramaters for age and grade ranges. The system is designed for single gender cabins with the values "Male" or "Female". 
 
-# Maintainer Documentation 
-
-## assign_cabins 
-
-The assign_cabins function groups campers into cabins based on their gender and age, while also considering their buddy requests. The function takes three parameters: 'sorted_campers_df', a dataframe containing campers information, 'age_range', an optimal parameter that specifies the maximium allowed age difference between campers in a cabin (default is 2); and 'output_file'; an optional parameter that specifies the output file name for the cabin pairings (default is 'cabin_pairings.csv'). 
-
-The function first groups the campers by gender and iterates through each gender group. For each camper, it checks if they have a buddy request and adds both the camper and their buddy to the same cabin if the buddy request can be fulfilled. The function then attempts to fill the cabin with campers within the specified age range. Once a cabin is full or there are no more campers to add, the cabin is added to the cabins dictionary, and the process continues with the next camper. 
-
-Finally, the cabin pairings are written to a file specified by the 'output_file' parameter. The function returns the cabins dictionary, which contains the final cabin assignments. 
+# Overhaul in progress. Further documentation coming soon. 

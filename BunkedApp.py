@@ -2,7 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 import pandas as pd 
-from file_processing import scrape_camper_csv
+from processing.file_processing import scrape_camper_csv
+from processing.generateCabins import gen_buddy_groups
 
 class BunkedGui:
 
@@ -78,7 +79,9 @@ class BunkedGui:
             # Make sure to drop the 'SortValue' column after sorting
             sorted_campers_df.drop('SortValue', axis=1, inplace=True)
 
-            scrape_camper_csv(sorted_campers_df, column_names)
+            campers_dict = scrape_camper_csv(sorted_campers_df, column_names)
+            
+            print(gen_buddy_groups(sorted_campers_df, campers_dict)) 
     
     def get_data_frame(self): 
         return self._df
