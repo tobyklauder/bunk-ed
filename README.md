@@ -1,7 +1,7 @@
 # bunk'ed 
 ## a lightweight application to group campers into their cabins
 
-This small a lightweight application was built for SAMBICA Camps and Retreat Center during the Summmer of 2023. It is open sourced here in hopes that other camps that need to organize their campers into cabins and desire an automatic system are able to easily do so! We believe in sharing our tools and progress with others to the benefit of the kingdom of God! 
+This small a lightweight application was built for SAMBICA Camps and Retreat Center during the Summmer of 2023. It is open sourced here in hopes that other camps that need to organize their campers into cabins and desire an automatic system are able to easily do so! 
 
 Previously, they had been creating all cabin assignments for campers by hand, which caused hours of labor on the part of the full time staff at the organization. 
 
