@@ -14,8 +14,9 @@ class Cabin:
         """
         self._cabin_gender = ""
         self._campers = [] 
-        self.cabin_grade = [] 
+        self._cabin_grade = [] 
         self._cabin_name = ""
+        self.size = 0
 
         # Set the cabin number and increment the cabin count
         self._cabin_number = Cabin._cabin_count
@@ -24,6 +25,11 @@ class Cabin:
         # Set the cabin's counselor (not stored by default according to client)
         self._counselor = ""
 
+
+    def get_average_grade(self):
+        if not self._campers:
+            return float('inf')  # Use infinity to handle empty cabins if needed
+        return sum(camper.get_grade() for camper in self._campers) / len(self._campers)
 
     def validate_camper(self, camper) -> bool:
         """
@@ -49,12 +55,13 @@ class Cabin:
         return add_flag
 
 
-    def add_camper(self, camper) -> int:
+    def add_camper(self, camper, max_cabin_size) -> int:
         """
         attempts to add the camper to the cabin. 
 
         args: 
             camper: camper object to add to the cabin
+            max_cabin_size: maximum size of the cabin 
         returns:
             1 if the camper was successfully added to the cabin
             -1 if the cabin is full
@@ -64,7 +71,7 @@ class Cabin:
             self._cabin_gender = camper.get_gender() 
         
         # If the cabin already has the maximum number of campers or gender does not match 
-        if len(self._campers) >= 10 or self._cabin_gender != camper.get_gender():
+        if len(self._campers) >= max_cabin_size or self._cabin_gender != camper.get_gender():
             return -1
         
         # If the camper's grade isn't in the cabin grade and cabin grade has less than 2 distinct grades
@@ -78,6 +85,7 @@ class Cabin:
         else: 
             return -1 
 
+        self.size += 1 
         self._campers.append(camper)
         return 1
 
@@ -89,6 +97,7 @@ class Cabin:
         args: 
             camper: camper object to remove from the cabin
         """
+        self.size -= 1
         self._campers.remove(camper)
 
     # Setters

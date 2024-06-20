@@ -3,7 +3,6 @@ from tkinter import ttk
 from tkinter import filedialog
 import pandas as pd 
 
-
 from processing.file_processing import scrape_camper_csv
 from processing.genBuddyGroups import gen_buddy_groups
 from processing.genBuddyGroups import debug_buddy_groups
@@ -11,11 +10,9 @@ from processing.genCabins import assign_cabins
 
 class BunkedGui:
 
-    _df = None
-
     def __init__(self, root) -> None:
         """
-        Initalize the tkinter window 
+        Initialize the tkinter window 
 
         args:
             root: the root of the tkinter window
@@ -24,12 +21,13 @@ class BunkedGui:
             None
         """
         self.root = root
+        self._df = None
 
         # Set the title for the window 
         self.root.title("Bunk'ed")
         
         # Set the size of the window 
-        self.root.geometry("200x120")
+        self.root.geometry("200x180")
         
         self.configure_styles()
         self.create_header()
@@ -59,25 +57,51 @@ class BunkedGui:
 
         attach_button = ttk.Button(frame, text="Camper Data", style="Custom.TButton", command=self.get_csv)
         attach_button.pack(pady=5, anchor="center")
+        
+
+        label = ttk.Label(frame, text="MAX_CABIN_SIZE", style="Custom.TLabel")
+        label.pack(pady=5, anchor="center")
+
+
+        self.numeric_var = tk.StringVar()
+        numeric_entry = ttk.Entry(frame, textvariable=self.numeric_var, style="Custom.TEntry")
+        numeric_entry.pack(pady=5, anchor="center")
+
+
+        validate_numeric = (self.root.register(self.only_numbers), '%P')
+        numeric_entry.config(validate="key", validatecommand=validate_numeric)
+        
+
+        
+    def only_numbers(self, char):
+        return char.isdigit() or char == ""
 
     def get_csv(self): 
         file_path = filedialog.askopenfilename(
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
 
-        _df = None
-
         if file_path:
-            _df = pd.read_csv(file_path)
-            self.process_csv(_df)
+            self._df = pd.read_csv(file_path)
+            self._df = self._df.dropna(how='all', axis=1)  # Drop columns that are entirely NaN
+            self._df = self._df.dropna(how='all')  # Drop rows that are entirely NaN
 
-        return _df 
-    
+            self.process_csv(self._df)
+
     def process_csv(self, campers_df):
+        
+        # default to a cabin size of 10 if none is provided
+        max_cabin_size = 10
+        
+        try: 
+            max_cabin_size = int(self.numeric_var.get())
+        except ValueError:
+            print("No valid cabin size provided, defaulting.") 
+            
 
         column_names = {} 
 
-        grade_column = campers_df.filter(like="Grade").columns[0]
+        grade_column = campers_df.filter(like="Current grade").columns[0]
         column_names["Grade"] = grade_column
 
         age_column = campers_df.filter(like="Age").columns[0]
@@ -91,25 +115,24 @@ class BunkedGui:
 
         campers_df['Full Name'] = campers_df['First name'] + ' ' + campers_df['Last name']  # new line to create 'Full Name'
             
-            # Create a new column 'SortValue' in the DataFrame where if the 'Age' is less than or equal to 0,
-            # it will take the value of '2023 > Grade' otherwise it will take the value of 'Age'
+        # Create a new column 'SortValue' in the DataFrame where if the 'Age' is less than or equal to 0,
+        # it will take the value of 'Current grade' otherwise it will take the value of 'Age'
         campers_df['SortValue'] = campers_df[age_column].where(campers_df[age_column] > 0, campers_df[grade_column])
 
-            # Now sort the DataFrame based on the 'SortValue' and 'Gender' columns
+        # Now sort the DataFrame based on the 'SortValue' and 'Gender' columns
         sorted_campers_df = campers_df.sort_values(by=[gender_column, 'SortValue'])
 
-            # Make sure to drop the 'SortValue' column after sorting
+        # Make sure to drop the 'SortValue' column after sorting
         sorted_campers_df.drop('SortValue', axis=1, inplace=True)
 
         campers_dict = scrape_camper_csv(sorted_campers_df, column_names)
             
         buddy_groups = gen_buddy_groups(sorted_campers_df, campers_dict)
-
-        debug_buddy_groups(buddy_groups)
         
-        assign_cabins(buddy_groups)
-
         
+        assign_cabins(buddy_groups, sorted_campers_df, max_cabin_size)
+        
+
     def get_data_frame(self): 
         return self._df
 
@@ -119,5 +142,4 @@ def main() -> None:
     app = BunkedGui(root)
     root.mainloop()
 
-main() 
-
+main()
