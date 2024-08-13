@@ -22,13 +22,16 @@ class Camper:
         None
         """
         self._name = name 
-        self._age = int(age) 
+        
+        try: 
+            self._age = int(age)
+        except ValueError: 
+            self._age = 0 
 
         # Extract the grade from the grade column
         pattern = r'\d+'
         grade = re.findall(pattern, grade)
-
-        # Set the grade to the first element in the matched list. 
+        
         self._grade = int(grade[0])
         self._gender = gender  
         self._buddy_requests = buddy_requests

@@ -6,7 +6,7 @@ import pandas as pd
 from processing.file_processing import scrape_camper_csv
 from processing.genBuddyGroups import gen_buddy_groups
 from processing.genBuddyGroups import debug_buddy_groups
-from processing.genCabins import assign_cabins
+from processing.genCabins import assign_cabins, get_unassigned_campers
 
 class BunkedGui:
 
@@ -88,18 +88,19 @@ class BunkedGui:
 
             self.process_csv(self._df)
 
+
+
     def process_csv(self, campers_df):
-        
+
         # default to a cabin size of 10 if none is provided
         max_cabin_size = 10
-        
-        try: 
+
+        try:
             max_cabin_size = int(self.numeric_var.get())
         except ValueError:
-            print("No valid cabin size provided, defaulting.") 
-            
+            print("No valid cabin size provided, defaulting.")
 
-        column_names = {} 
+        column_names = {}
 
         grade_column = campers_df.filter(like="Current grade").columns[0]
         column_names["Grade"] = grade_column
@@ -114,7 +115,7 @@ class BunkedGui:
         column_names["Buddy"] = buddy_columns
 
         campers_df['Full Name'] = campers_df['First name'] + ' ' + campers_df['Last name']  # new line to create 'Full Name'
-            
+
         # Create a new column 'SortValue' in the DataFrame where if the 'Age' is less than or equal to 0,
         # it will take the value of 'Current grade' otherwise it will take the value of 'Age'
         campers_df['SortValue'] = campers_df[age_column].where(campers_df[age_column] > 0, campers_df[grade_column])
@@ -126,11 +127,64 @@ class BunkedGui:
         sorted_campers_df.drop('SortValue', axis=1, inplace=True)
 
         campers_dict = scrape_camper_csv(sorted_campers_df, column_names)
-            
+
         buddy_groups = gen_buddy_groups(sorted_campers_df, campers_dict)
+
+        def flatten(lst):
+            flat_list = []
+            for group in lst:
+                flat_list.extend(group.get_members())
+            return flat_list
+
+            # Getting assigned campers
+        # Getting assigned campers
+        assigned_campers = [camper for camper in flatten(buddy_groups)]
+
+        # Get all campers' full names from the DataFrame
+        all_campers_set = set(campers_df['Full Name'])
+
+        # Get all assigned campers' full names
+        assigned_campers_set = set(camper._name for camper in assigned_campers)
+
+        # Find the unassigned campers
+        unassigned_campers = all_campers_set - assigned_campers_set
+
+        # Convert sets to lists
+        assigned_campers_list = list(assigned_campers_set)
+        unassigned_campers_list = list(unassigned_campers)
+
+        # Ask user for directory to save the CSV files
+    
+        save_dir = filedialog.askdirectory(title="Select Directory to Save CSVs")
+
+        if save_dir:  # If the user selects a directory
+            # Create DataFrame for unassigned campers
+            unassigned_campers_df = campers_df[campers_df['Full Name'].isin(unassigned_campers_list)]
+            unassigned_campers_df.to_csv(f'{save_dir}/unassigned_campers.csv', index=False)
+
+            # Creating the buddy groups CSV with extra lines between groups
+            with open(f'{save_dir}/buddy_groups.csv', 'w') as f:
+                for group in buddy_groups:
+                    # Get members of the group and their details from the DataFrame
+                    group_members = group.get_members()
+                    group_df = campers_df[campers_df['Full Name'].isin([member._name for member in group_members])]
+
+                    # Sort the group DataFrame by a specific column (e.g., 'Full Name')
+                    group_df = group_df.sort_values(by='Full Name')
+
+                    # Write the group data to the CSV
+                    group_df.to_csv(f, index=False, header=f.tell() == 0)
+
+                    # Write an empty line after each group
+                    f.write('\n')
+
+            print(f"CSV files created: {save_dir}/buddy_groups.csv and {save_dir}/unassigned_campers.csv")
+        else:
+            print("No directory selected, files not saved.")
+            
+        debug_buddy_groups(buddy_groups)
         
-        
-        assign_cabins(buddy_groups, sorted_campers_df, max_cabin_size)
+        quit()
         
 
     def get_data_frame(self): 
